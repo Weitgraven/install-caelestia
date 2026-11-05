@@ -10,6 +10,7 @@
 #   others     map to `caelestia install --enable-components/--disable-components`
 
 set -euo pipefail
+SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || true)"   # resolve before cd
 cd /   # never inherit a cwd the target user can't read (e.g. /root)
 
 INSTALL_GREETD=0
@@ -38,7 +39,6 @@ command -v pacman >/dev/null || die "pacman not found — this script is for Arc
 # --- running as root? create a normal user and re-run as them ---------------
 # Hyprland/Caelestia must run as a normal user, and makepkg refuses root.
 if [[ $EUID -eq 0 ]]; then
-  SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || true)"
   [[ -f "$SELF" ]] || die "Save the script to a file first (don't pipe it), then run: bash install-caelestia.sh"
 
   c "Running as root — setting up a normal user first."
