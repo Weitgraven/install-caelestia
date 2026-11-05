@@ -1,27 +1,32 @@
 #!/usr/bin/env bash
 # Instant installer: Hyprland + Caelestia dots (shell, CLI, configs)
-# For Arch / CachyOS / other Arch-based distros.
+# For Arch / CachyOS / other Arch-based distros. Works from a bare TTY, also as root.
 #
 # Usage:
 #   bash install-caelestia.sh [--greetd] [--spotify] [--vscode=codium|code] [--discord] [--zen]
+#                             [--enable=comp1,comp2] [--disable=comp1,comp2]
 #
 #   --greetd   also install & enable greetd + tuigreet as login manager
-#   other flags are passed straight to Caelestia's install.fish
-#
-# One-liner (after hosting this file somewhere):
-#   curl -fsSL https://<your-host>/install-caelestia.sh | bash -s -- --greetd
+#   others     map to `caelestia install --enable-components/--disable-components`
 
 set -euo pipefail
+cd /   # never inherit a cwd the target user can't read (e.g. /root)
 
-REPO_URL="https://github.com/caelestia-dots/caelestia.git"
-REPO_DIR="$HOME/.local/share/caelestia"   # do NOT move/delete after install (configs are symlinked)
 INSTALL_GREETD=0
-PASSTHRU=()
+ENABLE=()
+DISABLE=()
 
 for arg in "$@"; do
   case "$arg" in
-    --greetd) INSTALL_GREETD=1 ;;
-    *) PASSTHRU+=("$arg") ;;
+    --greetd)          INSTALL_GREETD=1 ;;
+    --spotify)         ENABLE+=(spotify) ;;
+    --discord)         ENABLE+=(discord) ;;
+    --zen)             ENABLE+=(zen) ;;
+    --vscode=codium)   ENABLE+=(vscodium) ;;
+    --vscode|--vscode=code) ENABLE+=(vscode) ;;
+    --enable=*)        IFS=, read -ra x <<<"${arg#*=}"; ENABLE+=("${x[@]}") ;;
+    --disable=*)       IFS=, read -ra x <<<"${arg#*=}"; DISABLE+=("${x[@]}") ;;
+    *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
 
@@ -89,19 +94,25 @@ else
 fi
 c "Using AUR helper: $AUR"
 
-# --- clone / update dots ----------------------------------------------------
-if [[ -d "$REPO_DIR/.git" ]]; then
-  c "Caelestia repo exists — pulling latest..."
-  git -C "$REPO_DIR" pull --ff-only
-else
-  c "Cloning Caelestia dots to $REPO_DIR..."
-  mkdir -p "$(dirname "$REPO_DIR")"
-  git clone "$REPO_URL" "$REPO_DIR"
+# --- remove stale clone from old version of this script ---------------------
+# (the CLI would treat ~/.local/share/caelestia as a legacy install)
+OLD="$HOME/.local/share/caelestia"
+if [[ -d "$OLD/.git" && ! -L "$HOME/.config/hypr" ]] && git -C "$OLD" remote get-url origin 2>/dev/null | grep -q caelestia-dots/caelestia; then
+  c "Removing unused clone at $OLD..."
+  rm -rf "$OLD"
 fi
 
-# --- run official installer -------------------------------------------------
-c "Running Caelestia install script..."
-fish "$REPO_DIR/install.fish" --noconfirm --aur-helper="$AUR" "${PASSTHRU[@]}"
+# --- Caelestia CLI + install -------------------------------------------------
+c "Installing caelestia-cli from the AUR..."
+"$AUR" -S --needed --noconfirm caelestia-cli
+
+ARGS=(install --noconfirm --aur-helper="$AUR")
+if ((${#ENABLE[@]}));  then ARGS+=(--enable-components="$(IFS=,; echo "${ENABLE[*]}")"); fi
+if ((${#DISABLE[@]})); then ARGS+=(--disable-components="$(IFS=,; echo "${DISABLE[*]}")"); fi
+
+c "Running: caelestia ${ARGS[*]}"
+cd "$HOME"
+caelestia "${ARGS[@]}"
 
 # --- optional login manager -------------------------------------------------
 if [[ $INSTALL_GREETD -eq 1 ]]; then
@@ -117,7 +128,7 @@ user = "greeter"
 EOF
   # disable other display managers so greetd can take over
   for dm in sddm gdm lightdm ly; do
-    systemctl is-enabled "$dm" &>/dev/null && sudo systemctl disable "$dm" || true
+    if systemctl is-enabled "$dm" &>/dev/null; then sudo systemctl disable "$dm"; fi
   done
   sudo systemctl enable greetd
 fi
@@ -131,6 +142,6 @@ $(c "Done!")
       ~/.config/caelestia/hypr-vars.lua
       ~/.config/caelestia/hypr-user.lua
       ~/.config/caelestia/shell.json
-  • Update later: $AUR -Syu && git -C $REPO_DIR pull
-  • Don't move or delete $REPO_DIR — your configs are symlinked to it.
+  • Update later: caelestia update
+  • Don't edit files in ~/.config/hypr/ — use the caelestia files above.
 EOF
