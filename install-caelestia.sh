@@ -130,7 +130,7 @@ if [[ $INSTALL_GREETD -eq 1 ]]; then
 vt = 1
 
 [default_session]
-command = "tuigreet --time --remember --remember-session --asterisks --cmd Hyprland"
+command = "tuigreet --time --remember --remember-session --asterisks --cmd start-hyprland"
 user = "greeter"
 EOF
   # disable other display managers so greetd can take over
