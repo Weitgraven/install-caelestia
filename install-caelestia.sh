@@ -79,6 +79,13 @@ sudo pacman -Syu --noconfirm
 c "Installing base dependencies (git, fish, base-devel, hyprland)..."
 sudo pacman -S --needed --noconfirm git fish base-devel hyprland
 
+# Caelestia needs pipewire-jack; with --noconfirm pacman refuses to replace jack2
+if pacman -Qq jack2 &>/dev/null; then
+  c "Replacing jack2 with pipewire-jack..."
+  sudo pacman -Rdd --noconfirm jack2
+  sudo pacman -S --needed --noconfirm pipewire-jack
+fi
+
 # --- AUR helper -------------------------------------------------------------
 if command -v paru >/dev/null; then
   AUR=paru
